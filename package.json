@@ -1,0 +1,19 @@
+{
+  "name": "apcida-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "migrate": "node --env-file-if-exists=.env scripts/migrate.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "5.2.1",
+    "express-rate-limit": "8.3.1",
+    "pg": "8.17.2"
+  }
+}

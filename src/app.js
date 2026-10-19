@@ -1,0 +1,75 @@
+import { timingSafeEqual } from 'node:crypto';
+import express from 'express';
+import { rateLimit } from 'express-rate-limit';
+import { validateReport } from './validation.js';
+
+const TIMESTAMP_WINDOW_MS = 5 * 60 * 1000;
+
+function matchesKey(candidate, expected) {
+  if (typeof candidate !== 'string') return false;
+  const a = Buffer.from(candidate);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+export function createApp({ apiKey, repository, now = Date.now,
+  limiter = rateLimit({ windowMs: 60_000, limit: 60,
+    standardHeaders: 'draft-8', legacyHeaders: false }) }) {
+  const app = express();
+  app.disable('x-powered-by');
+  app.set('trust proxy', 1);
+  app.use(express.json({ limit: '16kb', strict: true }));
+
+  app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
+  app.post('/api/reports/submit', limiter, async (req, res) => {
+    if (!matchesKey(req.get('X-API-Key'), apiKey)) {
+      return res.status(401).json({ success: false,
+        message: 'Invalid credentials', reportId: null });
+    }
+
+    const timestamp = req.get('X-Timestamp');
+    const requestTime = timestamp && /^\d{13}$/.test(timestamp)
+      ? Number(timestamp) : NaN;
+    if (!Number.isSafeInteger(requestTime) ||
+        Math.abs(now() - requestTime) > TIMESTAMP_WINDOW_MS) {
+      return res.status(401).json({ success: false,
+        message: 'Invalid or stale timestamp', reportId: null });
+    }
+
+    const result = validateReport(req.body, now());
+    if (result.error) {
+      return res.status(400).json({ success: false,
+        message: result.error, reportId: null });
+    }
+
+    try {
+      const stored = await repository.save(result.value);
+      return res.status(stored.created ? 201 : 200).json({
+        success: true,
+        message: stored.created ? 'Report received' : 'Report already received',
+        reportId: stored.reportId
+      });
+    } catch (error) {
+      // Do not log request bodies, credentials, or database connection details.
+      console.error('Report storage failed', error?.code ?? error?.name ?? 'Error');
+      return res.status(503).json({ success: false,
+        message: 'Report storage unavailable', reportId: null });
+    }
+  });
+
+  app.use((error, _req, res, _next) => {
+    const tooLarge = error?.type === 'entity.too.large';
+    const malformed = error instanceof SyntaxError && 'body' in error;
+    if (tooLarge || malformed) {
+      return res.status(tooLarge ? 413 : 400).json({ success: false,
+        message: tooLarge ? 'Request body too large' : 'Malformed JSON',
+        reportId: null });
+    }
+    console.error('Request handling failed', error?.name ?? 'Error');
+    return res.status(500).json({ success: false,
+      message: 'Internal server error', reportId: null });
+  });
+
+  return app;
+}
