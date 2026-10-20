@@ -18,7 +18,7 @@ test('deduplicates a retry using a stable payload digest', async () => {
         ? { rows: [{ report_id: 'same-id' }] }
         : calls.length === 2
           ? { rows: [] }
-          : { rows: [{ report_id: 'same-id' }] };
+          : { rows: [{ report_id: 'same-id', payload_digest: calls[0].parameters[1] }] };
     }
   };
   const repository = createReportRepository(pool);
@@ -28,4 +28,25 @@ test('deduplicates a retry using a stable payload digest', async () => {
     { reportId: 'same-id', created: false });
   assert.equal(calls[0].parameters[1], calls[1].parameters[1]);
   assert.equal(calls[0].parameters[1], calls[2].parameters[0]);
+});
+
+test('rejects reuse of a client report ID with different content', async () => {
+  let originalDigest;
+  const pool = {
+    async query(_sql, parameters) {
+      if (parameters.length > 2) {
+        if (!originalDigest) {
+          originalDigest = parameters[1];
+          return { rows: [{ report_id: 'same-id' }] };
+        }
+        return { rows: [] };
+      }
+      return { rows: [{ report_id: 'same-id', payload_digest: originalDigest }] };
+    }
+  };
+  const repository = createReportRepository(pool);
+  const first = { ...report, clientReportId: 'ea1427aa-f483-43ad-9fa3-55358167dc80' };
+  await repository.save(first);
+  await assert.rejects(repository.save({ ...first, remarks: 'Changed after submission' }),
+    { code: 'REPORT_ID_CONFLICT' });
 });

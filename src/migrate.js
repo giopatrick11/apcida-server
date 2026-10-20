@@ -1,8 +1,12 @@
 import { readFile } from 'node:fs/promises';
 
-const migrationUrl = new URL('../db/001_create_reports.sql', import.meta.url);
+const migrationUrls = [
+  new URL('../db/001_create_reports.sql', import.meta.url),
+  new URL('../db/002_report_snapshots.sql', import.meta.url)
+];
 
 export async function migrate(pool) {
-  const sql = await readFile(migrationUrl, 'utf8');
-  await pool.query(sql);
+  for (const url of migrationUrls) {
+    await pool.query(await readFile(url, 'utf8'));
+  }
 }

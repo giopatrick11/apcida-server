@@ -18,7 +18,7 @@ export function createApp({ apiKey, repository, now = Date.now,
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
-  app.use(express.json({ limit: '16kb', strict: true }));
+  app.use(express.json({ limit: '32kb', strict: true }));
 
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
@@ -51,6 +51,10 @@ export function createApp({ apiKey, repository, now = Date.now,
         reportId: stored.reportId
       });
     } catch (error) {
+      if (error?.code === 'REPORT_ID_CONFLICT') {
+        return res.status(409).json({ success: false,
+          message: 'Report ID already used for different content', reportId: null });
+      }
       // Do not log request bodies, credentials, or database connection details.
       console.error('Report storage failed', error?.code ?? error?.name ?? 'Error');
       return res.status(503).json({ success: false,

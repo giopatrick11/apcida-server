@@ -19,12 +19,18 @@ let server;
 let baseUrl;
 let saved;
 let failStorage = false;
+let failConflict = false;
 let created = true;
 
 before(async () => {
   const repository = {
     async save(report) {
       if (failStorage) throw new Error('database unavailable');
+      if (failConflict) {
+        const error = new Error('report ID conflict');
+        error.code = 'REPORT_ID_CONFLICT';
+        throw error;
+      }
       saved = report;
       return { reportId: '26f654a8-2316-4f77-a88a-7fa6724a97b6', created };
     }
@@ -78,10 +84,48 @@ test('rejects missing or incorrect authentication and stale timestamps', async (
     { 'X-Timestamp': 'not-a-time' })).status, 401);
 });
 
-test('rejects raw SMS fields and malformed report metadata', async () => {
+test('rejects unexpected SMS and sender fields and malformed metadata', async () => {
   assert.equal((await submit({ ...validReport, fullSms: 'private text' })).status, 400);
   assert.equal((await submit({ ...validReport, riskScore: 500 })).status, 400);
   assert.equal((await submit({ ...validReport, detectedKeywords: 'verify' })).status, 400);
+});
+
+test('accepts a scan snapshot and exact SMS text with consent', async () => {
+  const snapshot = {
+    ...validReport,
+    clientReportId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    finalVerdict: 'SAFE',
+    ruleVerdict: 'SAFE',
+    processingState: 'COMPLETED',
+    aiStatus: 'AVAILABLE',
+    gemmaConfidence: 'LOW',
+    modelVersion: 'gemma3-1b-it-int4.task',
+    smsText: 'Visit https://example.test/login with code 123456',
+    messageSharingConsent: true
+  };
+  assert.equal((await submit(snapshot)).status, 201);
+  assert.equal(saved.smsText, snapshot.smsText);
+  assert.equal(saved.finalVerdict, 'SAFE');
+  assert.equal((await submit({ ...snapshot, messageSharingConsent: false })).status, 400);
+  assert.equal((await submit({ ...snapshot, messageSharingConsent: null })).status, 400);
+  assert.equal((await submit({ ...snapshot, senderAddress: '+639171234567' })).status, 400);
+  assert.equal((await submit({ ...snapshot, finalVerdict: 'UNKNOWN' })).status, 400);
+  assert.equal((await submit({ ...snapshot, aiStatus: null })).status, 400);
+});
+
+test('accepts a new report without SMS text when sharing was declined', async () => {
+  const withoutSms = {
+    ...validReport,
+    clientReportId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    finalVerdict: 'SUSPICIOUS',
+    ruleVerdict: 'SCAM',
+    processingState: 'AI_FAILED',
+    aiStatus: 'UNAVAILABLE',
+    messageSharingConsent: false
+  };
+  assert.equal((await submit(withoutSms)).status, 201);
+  assert.equal(saved.smsText, null);
+  assert.equal(saved.messageSharingConsent, false);
 });
 
 test('redacts common identifiers from free text before storage', async () => {
@@ -108,4 +152,12 @@ test('returns a retryable failure when storage is unavailable', async () => {
   assert.equal(response.status, 503);
   assert.equal((await response.json()).success, false);
   failStorage = false;
+});
+
+test('returns a permanent conflict for a reused report ID', async () => {
+  failConflict = true;
+  const response = await submit();
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).success, false);
+  failConflict = false;
 });

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import pg from 'pg';
 import { createApp } from '../src/app.js';
@@ -25,14 +26,23 @@ test('stores one PostgreSQL row when the Android request is retried',
 
       const url = `http://127.0.0.1:${server.address().port}/api/reports/submit`;
       const body = JSON.stringify({
-        reportType: 'Other',
+        reportType: 'Scam was not detected',
         remarks: 'Contact me at test@example.com',
         riskScore: 60,
         gemmaClassification: 'UNCERTAIN',
         gemmaRationale: null,
         detectedKeywords: ['urgent'],
         reportedAt: now,
-        appVersion: '1.0'
+        appVersion: '1.0',
+        clientReportId: randomUUID(),
+        finalVerdict: 'SUSPICIOUS',
+        ruleVerdict: 'SCAM',
+        processingState: 'COMPLETED',
+        aiStatus: 'AVAILABLE',
+        gemmaConfidence: 'LOW',
+        modelVersion: 'gemma3-1b-it-int4.task',
+        smsText: 'Verify at https://example.test/login',
+        messageSharingConsent: true
       });
       const send = () => fetch(url, { method: 'POST', body,
         headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey,
@@ -46,13 +56,19 @@ test('stores one PostgreSQL row when the Android request is retried',
       assert.equal((await second.json()).reportId, reportId);
 
       const stored = await pool.query(
-        'SELECT report_type, remarks, detected_keywords FROM reports WHERE report_id = $1',
+        `SELECT report_type, remarks, detected_keywords, final_verdict,
+                rule_verdict, sms_text, message_sharing_consent
+         FROM reports WHERE report_id = $1`,
         [reportId]
       );
       assert.equal(stored.rows.length, 1);
-      assert.equal(stored.rows[0].report_type, 'Other');
+      assert.equal(stored.rows[0].report_type, 'Scam was not detected');
       assert.equal(stored.rows[0].remarks, 'Contact me at [EMAIL]');
       assert.deepEqual(stored.rows[0].detected_keywords, ['urgent']);
+      assert.equal(stored.rows[0].final_verdict, 'SUSPICIOUS');
+      assert.equal(stored.rows[0].rule_verdict, 'SCAM');
+      assert.equal(stored.rows[0].sms_text, 'Verify at https://example.test/login');
+      assert.equal(stored.rows[0].message_sharing_consent, true);
     } finally {
       if (reportId) {
         await pool.query('DELETE FROM reports WHERE report_id = $1', [reportId]);
