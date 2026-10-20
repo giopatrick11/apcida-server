@@ -15,9 +15,17 @@ export function loadConfig(env = process.env) {
 
   const adminValues = [env.ADMIN_USERNAME, env.ADMIN_PASSWORD_HASH, env.ADMIN_SESSION_SECRET];
   const adminEnabled = adminValues.some(Boolean);
-  if (adminEnabled && (!adminValues.every(Boolean) || env.ADMIN_SESSION_SECRET.length < 32 ||
-      !/^scrypt:[a-f0-9]{32}:[a-f0-9]{128}$/.test(env.ADMIN_PASSWORD_HASH))) {
-    throw new Error('Admin requires ADMIN_USERNAME, a scrypt ADMIN_PASSWORD_HASH, and ADMIN_SESSION_SECRET of at least 32 characters');
+  if (adminEnabled) {
+    if (!env.ADMIN_USERNAME || env.ADMIN_USERNAME.trim() !== env.ADMIN_USERNAME ||
+        env.ADMIN_USERNAME.length > 100) {
+      throw new Error('ADMIN_USERNAME must be nonempty, at most 100 characters, and have no surrounding spaces');
+    }
+    if (!/^scrypt:[a-f0-9]{32}:[a-f0-9]{128}$/.test(env.ADMIN_PASSWORD_HASH ?? '')) {
+      throw new Error('ADMIN_PASSWORD_HASH must be the complete scrypt line from npm run hash-admin-password');
+    }
+    if (!env.ADMIN_SESSION_SECRET || env.ADMIN_SESSION_SECRET.length < 32) {
+      throw new Error('ADMIN_SESSION_SECRET must contain at least 32 characters');
+    }
   }
 
   return { apiKey, databaseUrl, port, admin: adminEnabled ? {

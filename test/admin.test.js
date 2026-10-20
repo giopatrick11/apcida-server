@@ -53,7 +53,12 @@ async function login() {
 test('admin configuration requires separate complete credentials', () => {
   const env = { REPORT_API_KEY: 'x'.repeat(40), DATABASE_URL: 'postgresql://localhost/db',
     ADMIN_USERNAME: 'reviewer' };
-  assert.throws(() => loadConfig(env), /Admin requires/);
+  assert.throws(() => loadConfig(env), /ADMIN_PASSWORD_HASH/);
+  assert.throws(() => loadConfig({ ...env, ADMIN_PASSWORD_HASH: admin.passwordHash }),
+    /ADMIN_SESSION_SECRET/);
+  assert.throws(() => loadConfig({ ...env, ADMIN_USERNAME: ' admin ',
+    ADMIN_PASSWORD_HASH: admin.passwordHash,
+    ADMIN_SESSION_SECRET: admin.sessionSecret }), /ADMIN_USERNAME/);
   assert.equal(loadConfig({ REPORT_API_KEY: env.REPORT_API_KEY,
     DATABASE_URL: env.DATABASE_URL }).admin, null);
 });
