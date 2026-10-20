@@ -3,6 +3,7 @@ import { createApp } from './app.js';
 import { loadConfig } from './config.js';
 import { migrate } from './migrate.js';
 import { createReportRepository } from './repository.js';
+import { createAdminRepository } from './admin-repository.js';
 
 const config = loadConfig();
 const pool = new pg.Pool({
@@ -20,7 +21,10 @@ try {
   await migrate(pool);
   const app = createApp({
     apiKey: config.apiKey,
-    repository: createReportRepository(pool)
+    repository: createReportRepository(pool),
+    admin: config.admin,
+    adminRepository: config.admin ? createAdminRepository(pool) : null,
+    ready: () => pool.query('SELECT 1')
   });
   const server = app.listen(config.port, '0.0.0.0', () => {
     console.log(`ApCiDa report server listening on port ${config.port}`);

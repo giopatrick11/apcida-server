@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import express from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { validateReport } from './validation.js';
+import { createAdminRouter } from './admin-router.js';
 
 const TIMESTAMP_WINDOW_MS = 5 * 60 * 1000;
 
@@ -12,7 +13,8 @@ function matchesKey(candidate, expected) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export function createApp({ apiKey, repository, now = Date.now,
+export function createApp({ apiKey, repository, admin = null, adminRepository = null,
+  ready = null, now = Date.now,
   limiter = rateLimit({ windowMs: 60_000, limit: 60,
     standardHeaders: 'draft-8', legacyHeaders: false }) }) {
   const app = express();
@@ -21,6 +23,19 @@ export function createApp({ apiKey, repository, now = Date.now,
   app.use(express.json({ limit: '32kb', strict: true }));
 
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+  app.get('/ready', async (_req, res) => {
+    if (!ready) return res.status(503).json({ status: 'unavailable' });
+    try {
+      await ready();
+      return res.json({ status: 'ok' });
+    } catch {
+      return res.status(503).json({ status: 'unavailable' });
+    }
+  });
+
+  if (admin && adminRepository) {
+    app.use('/admin', createAdminRouter({ admin, repository: adminRepository, now }));
+  }
 
   app.post('/api/reports/submit', limiter, async (req, res) => {
     if (!matchesKey(req.get('X-API-Key'), apiKey)) {

@@ -19,7 +19,39 @@ accepted only when the user selects the separate sharing option in the app.
 
 The default port is `3000`; set `PORT` to use another port. `GET /health`
 returns `{"status":"ok"}`. It checks that the process is running, not the
-database connection.
+database connection. `GET /ready` checks PostgreSQL and returns 503 if it is
+unavailable.
+
+## Private report review
+
+The admin dashboard is disabled until all three admin settings are set. Give it
+a **separate** username, password hash, and session secret; never use the
+Android `REPORT_API_KEY` for admin access. To create a password hash, run
+`ADMIN_PASSWORD='your long password' npm run hash-admin-password` and put the
+result in `ADMIN_PASSWORD_HASH`. Generate `ADMIN_SESSION_SECRET` with
+`openssl rand -hex 32`. Set `ADMIN_USERNAME` to your chosen username. Keep
+all three values in server environment variables, not Git. Run the dashboard
+over HTTPS when hosted.
+
+Open `/admin/login` to sign in. `/admin` shows received totals, review counts,
+breakdowns by reason, final verdict, AI status, Gemma classification, matched
+indicator, app/model version, and received day. Separate tables group confirmed
+findings by Gemma result, indicator, and app/model version. The report list has
+filters for reason, verdict, AI status, review status, and received dates, with 25 reports
+per page. It never includes SMS text. A report detail shows the saved snapshot,
+redacted remarks and rationale, and a collapsed SMS section only when the user
+opted to share it. Reviewers can save an `IN_REVIEW` or `RESOLVED` decision,
+confirmed `SCAM`/`LEGITIMATE`/`UNCERTAIN` label, finding, and notes. A resolved
+decision requires both a label and finding; an in-review decision has neither. Each save
+adds a review history entry; the submitted report remains unchanged.
+
+`MISSED_SCAM` and `FALSE_ALERT` are confirmed reviewer findings. User reasons
+and scan results are feedback, not ground truth. The dashboard does not infer
+detector accuracy from this selected set of reports. Use the `ANALYSIS_FAILURE`
+finding for cases where scanning failed. Use `INCONCLUSIVE` when evidence is
+insufficient. The admin login is rate limited, sessions expire after eight
+hours, and review forms require a CSRF token. A missing or partial admin
+configuration never exposes the dashboard: partial configuration fails startup.
 
 ## Android request contract
 
@@ -92,13 +124,13 @@ option is a Render web service plus a Neon PostgreSQL database:
 - Build command: `npm ci`
 - Start command: `npm start`
 - Environment variables: `DATABASE_URL` (use Neon's SSL connection string),
-  `REPORT_API_KEY` (the random key generated above)
-- Health-check path: `/health`
+  `REPORT_API_KEY` (the random key generated above), and `ADMIN_USERNAME`,
+  `ADMIN_PASSWORD_HASH`, `ADMIN_SESSION_SECRET` to enable private review
+- Health-check path: `/ready`
 
 A failed first attempt stays pending; the Android client retries through
 WorkManager with a network constraint. Its request timeout is 90 seconds.
 
 The Android app has a default server URL and an empty API key. Server deployment
 alone will not make reports upload until the client is configured.
-No safety-tip, keyword-update, or admin endpoints are included in this first
-server version.
+The admin dashboard is available only after its separate credentials are set.

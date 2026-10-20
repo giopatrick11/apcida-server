@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env src/server.js",
     "migrate": "node --env-file-if-exists=.env scripts/migrate.js",
+    "hash-admin-password": "node scripts/hash-admin-password.js",
     "test": "node --test"
   },
   "dependencies": {

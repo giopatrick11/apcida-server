@@ -5,6 +5,7 @@ import pg from 'pg';
 import { createApp } from '../src/app.js';
 import { migrate } from '../src/migrate.js';
 import { createReportRepository } from '../src/repository.js';
+import { createAdminRepository } from '../src/admin-repository.js';
 
 test('stores one PostgreSQL row when the Android request is retried',
   { skip: !process.env.TEST_DATABASE_URL }, async () => {
@@ -69,6 +70,25 @@ test('stores one PostgreSQL row when the Android request is retried',
       assert.equal(stored.rows[0].rule_verdict, 'SCAM');
       assert.equal(stored.rows[0].sms_text, 'Verify at https://example.test/login');
       assert.equal(stored.rows[0].message_sharing_consent, true);
+
+      const adminRepository = createAdminRepository(pool);
+      const listed = await adminRepository.list({ page: 1 });
+      const row = listed.rows.find((item) => item.report_id === reportId);
+      assert.equal(row.review_status, 'NEW');
+      assert.equal(Object.hasOwn(row, 'sms_text'), false);
+      assert.equal(await adminRepository.review(reportId, {
+        status: 'RESOLVED', label: 'SCAM', finding: 'MISSED_SCAM',
+        notes: 'Verified by reviewer'
+      }, 'test-reviewer'), true);
+      const detail = await adminRepository.get(reportId);
+      assert.equal(detail.confirmed_label, 'SCAM');
+      assert.equal(detail.finding, 'MISSED_SCAM');
+      assert.equal(detail.sms_text, 'Verify at https://example.test/login');
+      const history = await adminRepository.history(reportId);
+      assert.equal(history.length, 1);
+      const summary = await adminRepository.summary();
+      assert.ok(summary.totals.reports >= 1);
+      assert.ok(summary.finding.some((item) => item.label === 'MISSED_SCAM'));
     } finally {
       if (reportId) {
         await pool.query('DELETE FROM reports WHERE report_id = $1', [reportId]);
