@@ -57,8 +57,6 @@ export function createAdminRouter({ admin, repository, now = Date.now,
     res.send(loginPage());
   });
   router.post('/login', loginLimiter, (req, res) => {
-    const origin = req.get('origin');
-    if (origin && origin !== `${req.protocol}://${req.get('host')}`) return res.sendStatus(403);
     if (!auth.login(req, res)) return res.status(401).send(loginPage('Invalid username or password.'));
     return res.redirect(303, '/admin');
   });

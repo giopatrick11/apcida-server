@@ -52,9 +52,7 @@ export function createAdminAuth(admin, now = Date.now) {
       } catch { return null; }
     },
     csrf(req, session) {
-      const origin = req.get('origin');
-      const expectedOrigin = `${req.protocol}://${req.get('host')}`;
-      return (!origin || origin === expectedOrigin) && equal(req.body?._csrf ?? '', session.csrf);
+      return equal(req.body?._csrf ?? '', session.csrf);
     },
     logout(req, res) { res.clearCookie(COOKIE, cookieOptions(req)); }
   };

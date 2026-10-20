@@ -72,6 +72,10 @@ test('report API key alone cannot access admin pages', async () => {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ username: 'reviewer', password: 'wrong-password' }) });
   assert.equal(bad.status, 401);
+  const proxyOrigin = await fetch(`${base}/admin/login`, { method: 'POST', redirect: 'manual',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: 'null' },
+    body: new URLSearchParams({ username: 'reviewer', password: 'wrong-password' }) });
+  assert.equal(proxyOrigin.status, 401);
 });
 
 test('admin list excludes SMS and supports filters with bounded pagination', async () => {
@@ -102,14 +106,14 @@ test('review requires CSRF and validates confirmed findings', async () => {
   const detail = await (await fetch(`${base}/admin/reports/${id}`, { headers: { Cookie: cookie } })).text();
   const csrf = detail.match(/name="_csrf" value="([^"]+)"/)[1];
   const url = `${base}/admin/reports/${id}/review`;
-  const send = (body) => fetch(url, { method: 'POST', redirect: 'manual',
-    headers: { Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+  const send = (body, headers = {}) => fetch(url, { method: 'POST', redirect: 'manual',
+    headers: { Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
     body: new URLSearchParams(body) });
   assert.equal((await send({ status: 'RESOLVED', label: 'SCAM' })).status, 403);
   assert.equal((await send({ _csrf: csrf, status: 'RESOLVED', label: 'LEGITIMATE',
     finding: 'MISSED_SCAM' })).status, 400);
   assert.equal((await send({ _csrf: csrf, status: 'RESOLVED', label: 'SCAM',
-    finding: 'MISSED_SCAM', notes: 'Confirmed by reviewer' })).status, 303);
+    finding: 'MISSED_SCAM', notes: 'Confirmed by reviewer' }, { Origin: 'null' })).status, 303);
   assert.deepEqual(decision, { status: 'RESOLVED', label: 'SCAM',
     finding: 'MISSED_SCAM', notes: 'Confirmed by reviewer', reviewer: 'reviewer' });
 });
