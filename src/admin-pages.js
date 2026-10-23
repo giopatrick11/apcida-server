@@ -6,7 +6,9 @@ export function escapeHtml(value) {
 
 const show = (value) => value === null || value === undefined || value === ''
   ? '<span class="muted">Unknown</span>' : escapeHtml(value);
-const date = (value) => value ? escapeHtml(new Date(value).toLocaleString('en-US', { timeZone: 'UTC' })) + ' UTC' : 'Unknown';
+const date = (value) => value ? escapeHtml(new Date(value).toLocaleString('en-PH', {
+  timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short'
+})) + ' PHT' : 'Unknown';
 const qs = (value) => new URLSearchParams(value).toString();
 
 function page(title, content, session) {
@@ -56,9 +58,9 @@ export function overviewPage(summary, listed, query, session) {
   const nav = `<div class="row"><span>Page ${listed.page} · ${listed.total} matching reports</span><span>${listed.page > 1 ? `<a href="/admin?${qs({ ...base, page: listed.page - 1 })}">Previous</a>` : ''} ${listed.page * listed.limit < listed.total ? `<a href="/admin?${qs({ ...base, page: listed.page + 1 })}">Next</a>` : ''}</span></div>`;
   return page('Reports', `<h1>Reports</h1><p class="muted">User reports are feedback. Confirmed findings come from reviewer decisions; these counts are not detector accuracy rates.</p>
     <div class="grid">${stat('Reports received', t.reports)}${stat('In review', t.in_review)}${stat('Resolved', t.resolved)}${stat('SMS texts shared', t.shared_sms)}</div>
-    <h2>Find reports</h2><div class="panel"><form method="get" action="/admin"><div class="fields">${fields.map(([name, label, options]) => select(name, label, options)).join('')}<div><label for="from">Received from</label><input id="from" name="from" type="date" value="${escapeHtml(query.from ?? '')}"></div><div><label for="to">Received through</label><input id="to" name="to" type="date" value="${escapeHtml(query.to ?? '')}"></div></div><p><button>Apply filters</button> <a href="/admin">Clear</a></p></form></div>
-    <div class="panel"><div class="row"><h2>Report list</h2>${nav}</div><div class="scroll"><table><thead><tr><th>Received</th><th>User reason</th><th>Scan verdicts</th><th>AI</th><th>Review</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="muted">No reports match these filters.</td></tr>'}</tbody></table></div>${nav}</div>
-    <h2>Patterns in received reports</h2><div class="grid">${breakdown('User reasons', summary.reason)}${breakdown('Final verdicts', summary.verdict)}${breakdown('AI status', summary.ai)}${breakdown('Gemma classification', summary.gemma)}${breakdown('Confirmed findings', summary.finding)}${breakdown('Matched indicators', summary.keyword)}${breakdown('App and model versions', summary.version)}${breakdown('Received by day (last 30 days)', summary.day)}</div>
+    <h2>Find reports</h2><div class="panel"><form method="get" action="/admin"><div class="fields">${fields.map(([name, label, options]) => select(name, label, options)).join('')}<div><label for="from">Received from (PHT)</label><input id="from" name="from" type="date" value="${escapeHtml(query.from ?? '')}"></div><div><label for="to">Received through (PHT)</label><input id="to" name="to" type="date" value="${escapeHtml(query.to ?? '')}"></div></div><p><button>Apply filters</button> <a href="/admin">Clear</a></p></form></div>
+    <div class="panel"><div class="row"><h2>Report list</h2>${nav}</div><div class="scroll"><table><thead><tr><th>Received (PHT)</th><th>User reason</th><th>Scan verdicts</th><th>AI</th><th>Review</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="muted">No reports match these filters.</td></tr>'}</tbody></table></div>${nav}</div>
+    <h2>Patterns in received reports</h2><div class="grid">${breakdown('User reasons', summary.reason)}${breakdown('Final verdicts', summary.verdict)}${breakdown('AI status', summary.ai)}${breakdown('Gemma classification', summary.gemma)}${breakdown('Confirmed findings', summary.finding)}${breakdown('Matched indicators', summary.keyword)}${breakdown('App and model versions', summary.version)}${breakdown('Received by day (last 30 days, PHT)', summary.day)}</div>
     <h2>Confirmed findings by scan context</h2><p class="muted">Only resolved reviewer decisions appear here. Multiple indicators can belong to one report.</p><div class="grid">${confirmedBreakdown('Gemma classification', summary.findingByGemma)}${confirmedBreakdown('Matched indicator', summary.findingByKeyword)}${confirmedBreakdown('App and model version', summary.findingByVersion)}</div>`, session);
 }
 

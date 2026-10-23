@@ -76,6 +76,12 @@ test('stores one PostgreSQL row when the Android request is retried',
       const row = listed.rows.find((item) => item.report_id === reportId);
       assert.equal(row.review_status, 'NEW');
       assert.equal(Object.hasOwn(row, 'sms_text'), false);
+      await pool.query('UPDATE reports SET received_at = $1 WHERE report_id = $2',
+        [new Date('2001-01-01T16:30:00Z'), reportId]);
+      const jan2 = await adminRepository.list({ page: 1, from: '2001-01-02', to: '2001-01-02' });
+      assert.ok(jan2.rows.some((item) => item.report_id === reportId));
+      const jan1 = await adminRepository.list({ page: 1, from: '2001-01-01', to: '2001-01-01' });
+      assert.ok(!jan1.rows.some((item) => item.report_id === reportId));
       assert.equal(await adminRepository.review(reportId, {
         status: 'RESOLVED', label: 'SCAM', finding: 'MISSED_SCAM',
         notes: 'Verified by reviewer'

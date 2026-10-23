@@ -21,11 +21,11 @@ function filters(query) {
   }
   if (query.from) {
     values.push(query.from);
-    parts.push(`r.received_at >= $${values.length}::date`);
+    parts.push(`r.received_at >= ($${values.length}::date::timestamp AT TIME ZONE 'Asia/Manila')`);
   }
   if (query.to) {
     values.push(query.to);
-    parts.push(`r.received_at < ($${values.length}::date + interval '1 day')`);
+    parts.push(`r.received_at < (($${values.length}::date + interval '1 day') AT TIME ZONE 'Asia/Manila')`);
   }
   return { values, where: parts.length ? `WHERE ${parts.join(' AND ')}` : '' };
 }
@@ -92,7 +92,10 @@ export function createAdminRepository(pool) {
           pool.query("SELECT COALESCE(gemma_classification, 'Unknown') AS label, count(*)::int AS count FROM reports GROUP BY 1 ORDER BY count DESC, label"),
           pool.query(`SELECT v.finding AS label, count(*)::int AS count FROM reports r ${latestReview}
             WHERE v.review_status = 'RESOLVED' GROUP BY v.finding ORDER BY count DESC, label`),
-          pool.query("SELECT received_at::date AS label, count(*)::int AS count FROM reports WHERE received_at >= current_date - interval '29 days' GROUP BY 1 ORDER BY 1 DESC"),
+          pool.query(`SELECT (received_at AT TIME ZONE 'Asia/Manila')::date::text AS label,
+            count(*)::int AS count FROM reports
+            WHERE received_at >= (((now() AT TIME ZONE 'Asia/Manila')::date - 29)::timestamp AT TIME ZONE 'Asia/Manila')
+            GROUP BY 1 ORDER BY 1 DESC`),
           pool.query("SELECT k.keyword AS label, count(*)::int AS count FROM reports r CROSS JOIN LATERAL jsonb_array_elements_text(r.detected_keywords) AS k(keyword) GROUP BY k.keyword ORDER BY count DESC, label LIMIT 15"),
           pool.query("SELECT concat('App ', app_version, ' / Model ', COALESCE(model_version, 'unknown')) AS label, count(*)::int AS count FROM reports GROUP BY app_version, model_version ORDER BY count DESC, label LIMIT 15"),
           pool.query(`SELECT COALESCE(r.gemma_classification, 'Unknown') AS group_label,

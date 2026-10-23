@@ -38,7 +38,9 @@ breakdowns by reason, final verdict, AI status, Gemma classification, matched
 indicator, app/model version, and received day. Separate tables group confirmed
 findings by Gemma result, indicator, and app/model version. The report list has
 filters for reason, verdict, AI status, review status, and received dates, with 25 reports
-per page. It never includes SMS text. A report detail shows the saved snapshot,
+per page. Dashboard times, received-date filters, and daily counts use Philippine
+time (`Asia/Manila`, PHT). Timestamps remain stored as timezone-aware instants.
+The list never includes SMS text. A report detail shows the saved snapshot,
 redacted remarks and rationale, and a collapsed SMS section only when the user
 opted to share it. Reviewers can save an `IN_REVIEW` or `RESOLVED` decision,
 confirmed `SCAM`/`LEGITIMATE`/`UNCERTAIN` label, finding, and notes. A resolved

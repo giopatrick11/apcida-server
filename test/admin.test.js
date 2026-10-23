@@ -14,7 +14,8 @@ const snapshot = {
   gemma_rationale: 'No warning', gemma_confidence: 'LOW', processing_state: 'COMPLETED',
   detected_keywords: ['verify'], app_version: '1.0', model_version: 'gemma',
   sms_text: 'private <b>SMS</b>', message_sharing_consent: true,
-  received_at: new Date(), reported_at: new Date(), review_status: 'NEW'
+  received_at: new Date('2026-10-22T16:30:00Z'),
+  reported_at: new Date('2026-10-22T16:30:00Z'), review_status: 'NEW'
 };
 const empty = { totals: { reports: 1, in_review: 0, resolved: 0, shared_sms: 1 },
   reason: [], verdict: [], ai: [], gemma: [], finding: [], day: [], keyword: [], version: [],
@@ -29,7 +30,8 @@ before(async () => {
     async summary() { return empty; },
     async list(query) { listQuery = query; return { rows: [snapshot], total: 1, page: query.page, limit: 25 }; },
     async get() { return snapshot; },
-    async history() { return []; },
+    async history() { return [{ reviewed_at: new Date('2026-10-22T16:30:00Z'),
+      review_status: 'IN_REVIEW', confirmed_label: null, finding: null, notes: null }]; },
     async review(_id, value, reviewer) { decision = { ...value, reviewer }; return true; }
   };
   server = createApp({ apiKey: 'a'.repeat(40), repository: { save() {} },
@@ -87,6 +89,9 @@ test('admin list excludes SMS and supports filters with bounded pagination', asy
   assert.ok(html.includes('Scam was not detected'));
   assert.ok(!html.includes('private &lt;b&gt;SMS&lt;/b&gt;'));
   assert.ok(!html.includes('private <b>SMS</b>'));
+  assert.ok(html.includes('Oct 23, 2026, 12:30 AM PHT'));
+  assert.ok(html.includes('Received from (PHT)'));
+  assert.ok(html.includes('Received by day (last 30 days, PHT)'));
   assert.equal(listQuery.page, 2);
   assert.equal(listQuery.status, 'NEW');
 });
@@ -99,6 +104,7 @@ test('detail escapes user data and only shows consented SMS on detail', async ()
   assert.ok(!html.includes('<script>alert(1)</script>'));
   assert.ok(html.includes('private &lt;b&gt;SMS&lt;/b&gt;'));
   assert.ok(html.includes('<details>'));
+  assert.equal(html.split('Oct 23, 2026, 12:30 AM PHT').length - 1, 3);
 });
 
 test('review requires CSRF and validates confirmed findings', async () => {
