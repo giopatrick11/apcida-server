@@ -11,7 +11,7 @@ const date = (value) => value ? escapeHtml(new Date(value).toLocaleString('en-PH
 })) + ' PHT' : 'Unknown';
 const qs = (value) => new URLSearchParams(value).toString();
 
-function page(title, content, session) {
+export function page(title, content, session) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>${escapeHtml(title)} · ApCiDa</title><style>
   :root{font-family:system-ui,sans-serif;color:#17243b;background:#f3f6fa}*{box-sizing:border-box}body{margin:0}
@@ -28,7 +28,7 @@ function page(title, content, session) {
   .facts strong{display:block;font-size:.82rem;color:#607285;text-transform:uppercase;letter-spacing:.03em}
   pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f6fa;padding:12px;border-radius:6px}details{margin-top:12px}
   .warn{border-left:4px solid #ba5b12;padding:12px;background:#fff6e8}a{color:#135b92}
-  </style></head><body><header><div class="row"><a href="/admin">ApCiDa · Report review</a>${session ? `<form method="post" action="/admin/logout"><input type="hidden" name="_csrf" value="${escapeHtml(session.csrf)}"><button>Sign out</button></form>` : ''}</div></header><main>${content}</main></body></html>`;
+  </style></head><body><header><div class="row"><a href="/admin">ApCiDa · Research admin</a>${session ? `<nav class="row"><a href="/admin">Reports</a><a href="/admin/community">Community messages</a></nav><form method="post" action="/admin/logout"><input type="hidden" name="_csrf" value="${escapeHtml(session.csrf)}"><button>Sign out</button></form>` : ''}</div></header><main>${content}</main></body></html>`;
 }
 
 export function loginPage(error = '') {

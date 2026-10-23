@@ -1,10 +1,14 @@
 export function loadConfig(env = process.env) {
   const apiKey = env.REPORT_API_KEY;
+  const communityApiKey = env.COMMUNITY_API_KEY || null;
   const databaseUrl = env.DATABASE_URL;
   const port = Number(env.PORT ?? 3000);
 
   if (!apiKey || apiKey.length < 32) {
     throw new Error('REPORT_API_KEY must contain at least 32 characters');
+  }
+  if (communityApiKey && (communityApiKey.length < 32 || communityApiKey === apiKey)) {
+    throw new Error('COMMUNITY_API_KEY must be separate from REPORT_API_KEY and contain at least 32 characters');
   }
   if (!databaseUrl || !/^postgres(ql)?:\/\//.test(databaseUrl)) {
     throw new Error('DATABASE_URL must be a PostgreSQL connection URL');
@@ -28,7 +32,7 @@ export function loadConfig(env = process.env) {
     }
   }
 
-  return { apiKey, databaseUrl, port, admin: adminEnabled ? {
+  return { apiKey, communityApiKey, databaseUrl, port, admin: adminEnabled ? {
     username: env.ADMIN_USERNAME, passwordHash: env.ADMIN_PASSWORD_HASH,
     sessionSecret: env.ADMIN_SESSION_SECRET
   } : null };

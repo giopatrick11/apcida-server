@@ -3,6 +3,7 @@ import express from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { validateReport } from './validation.js';
 import { createAdminRouter } from './admin-router.js';
+import { validateCommunityBatch, validParticipantId } from './community-validation.js';
 
 const TIMESTAMP_WINDOW_MS = 5 * 60 * 1000;
 
@@ -14,12 +15,15 @@ function matchesKey(candidate, expected) {
 }
 
 export function createApp({ apiKey, repository, admin = null, adminRepository = null,
+  communityKey = null, communityRepository = null, communityAdminRepository = null,
   ready = null, now = Date.now,
   limiter = rateLimit({ windowMs: 60_000, limit: 60,
     standardHeaders: 'draft-8', legacyHeaders: false }) }) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
+  // A consented batch can contain up to 40 edited messages.
+  app.use('/api/community', express.json({ limit: '512kb', strict: true }));
   app.use(express.json({ limit: '32kb', strict: true }));
 
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
@@ -34,8 +38,51 @@ export function createApp({ apiKey, repository, admin = null, adminRepository = 
   });
 
   if (admin && adminRepository) {
-    app.use('/admin', createAdminRouter({ admin, repository: adminRepository, now }));
+    app.use('/admin', createAdminRouter({ admin, repository: adminRepository,
+      communityRepository: communityAdminRepository, now }));
   }
+
+  const communityAvailable = (_req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    if (!communityKey || !communityRepository) {
+      return res.status(503).json({ message: 'Community contributions are unavailable' });
+    }
+    next();
+  };
+  const communityAuth = (req, res, next) => {
+    if (!matchesKey(req.get('X-API-Key'), communityKey)) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+    next();
+  };
+
+  app.get('/api/community/contributions/progress', limiter, communityAvailable,
+    communityAuth, async (req, res) => {
+      if (!validParticipantId(req.query.participantId)) {
+        return res.status(400).json({ message: 'Invalid participant ID' });
+      }
+      try {
+        return res.json(await communityRepository.progress(req.query.participantId));
+      } catch (error) {
+        console.error('Community progress failed', error?.code ?? error?.name ?? 'Error');
+        return res.status(503).json({ message: 'Community storage unavailable' });
+      }
+    });
+
+  app.post('/api/community/contributions', limiter, communityAvailable,
+    communityAuth, async (req, res) => {
+      const batch = validateCommunityBatch(req.body, now());
+      if (!batch) return res.status(400).json({ message: 'Invalid contribution batch' });
+      try {
+        return res.json(await communityRepository.submit(batch));
+      } catch (error) {
+        if (error?.code === 'COMMUNITY_BATCH_CONFLICT') {
+          return res.status(409).json({ message: 'Batch ID conflict' });
+        }
+        console.error('Community submission failed', error?.code ?? error?.name ?? 'Error');
+        return res.status(503).json({ message: 'Community storage unavailable' });
+      }
+    });
 
   app.post('/api/reports/submit', limiter, async (req, res) => {
     if (!matchesKey(req.get('X-API-Key'), apiKey)) {

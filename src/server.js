@@ -4,6 +4,8 @@ import { loadConfig } from './config.js';
 import { migrate } from './migrate.js';
 import { createReportRepository } from './repository.js';
 import { createAdminRepository } from './admin-repository.js';
+import { createCommunityRepository } from './community-repository.js';
+import { createCommunityAdminRepository } from './community-admin-repository.js';
 
 const config = loadConfig();
 const pool = new pg.Pool({
@@ -22,6 +24,9 @@ try {
   const app = createApp({
     apiKey: config.apiKey,
     repository: createReportRepository(pool),
+    communityKey: config.communityApiKey,
+    communityRepository: createCommunityRepository(pool),
+    communityAdminRepository: config.admin ? createCommunityAdminRepository(pool) : null,
     admin: config.admin,
     adminRepository: config.admin ? createAdminRepository(pool) : null,
     ready: () => pool.query('SELECT 1')

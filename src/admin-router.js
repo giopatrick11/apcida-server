@@ -2,6 +2,7 @@ import express from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { createAdminAuth } from './admin-auth.js';
 import { detailPage, loginPage, overviewPage } from './admin-pages.js';
+import { communityDetailPage, communityOverviewPage } from './community-pages.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -40,7 +41,7 @@ function parseDecision(body) {
   return { status, label, finding, notes };
 }
 
-export function createAdminRouter({ admin, repository, now = Date.now,
+export function createAdminRouter({ admin, repository, communityRepository = null, now = Date.now,
   loginLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 10,
     standardHeaders: 'draft-8', legacyHeaders: false }) }) {
   const router = express.Router();
@@ -81,6 +82,53 @@ export function createAdminRouter({ admin, repository, now = Date.now,
     ]);
     res.send(overviewPage(summary, listed, query, res.locals.adminSession));
   });
+  if (communityRepository) {
+    router.get('/community', async (req, res) => {
+      const category = ['SCAM', 'SAFE'].includes(req.query.category) ? req.query.category : '';
+      const verification = ['PENDING', 'VERIFIED', 'EXCLUDED'].includes(req.query.verification)
+        ? req.query.verification : '';
+      const parsedPage = Number(req.query.page ?? 1);
+      const page = Number.isSafeInteger(parsedPage) && parsedPage >= 1 && parsedPage <= 100000
+        ? parsedPage : 1;
+      const filters = { category, verification, page };
+      const [summary, listed] = await Promise.all([
+        communityRepository.summary(), communityRepository.list(filters)
+      ]);
+      res.send(communityOverviewPage(summary, listed, filters, res.locals.adminSession));
+    });
+    router.get('/community/export.csv', async (_req, res) => {
+      const rows = await communityRepository.exportRows();
+      const header = 'message_id,received_at,predicted_category,participant_reviewed_category,verification_status,verified_label';
+      const lines = rows.map((row) => [row.message_id,
+        new Date(row.received_at).toISOString(), row.predicted_category,
+        row.reviewed_category, row.verification_status || 'PENDING',
+        row.verified_label || ''].join(','));
+      res.set({ 'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="apcida-community-labels.csv"' });
+      res.send([header, ...lines].join('\r\n') + '\r\n');
+    });
+    router.get('/community/messages/:id', async (req, res) => {
+      if (!UUID.test(req.params.id)) return res.sendStatus(404);
+      const message = await communityRepository.get(req.params.id);
+      if (!message) return res.sendStatus(404);
+      const history = await communityRepository.history(req.params.id);
+      res.send(communityDetailPage(message, history, res.locals.adminSession));
+    });
+    router.post('/community/messages/:id/review', async (req, res) => {
+      if (!UUID.test(req.params.id)) return res.sendStatus(404);
+      const status = req.body?.status;
+      const label = req.body?.label || null;
+      const notes = req.body?.notes?.trim() || null;
+      if (!['VERIFIED', 'EXCLUDED'].includes(status) ||
+          (status === 'VERIFIED' && !['SCAM', 'SAFE'].includes(label)) ||
+          (status === 'EXCLUDED' && label !== null) ||
+          (notes && notes.length > 4000)) return res.status(400).send('Invalid community review');
+      const saved = await communityRepository.review(req.params.id,
+        { status, label, notes }, res.locals.adminSession.username);
+      if (!saved) return res.sendStatus(404);
+      res.redirect(303, `/admin/community/messages/${req.params.id}`);
+    });
+  }
   router.get('/reports/:id', async (req, res) => {
     if (!UUID.test(req.params.id)) return res.sendStatus(404);
     const report = await repository.get(req.params.id);

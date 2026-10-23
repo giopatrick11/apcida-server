@@ -14,6 +14,7 @@ accepted only when the user selects the separate sharing option in the app.
 1. Run `npm ci`.
 2. Copy `.env.example` to `.env` and set `DATABASE_URL` and `REPORT_API_KEY`.
    Generate a random key with `openssl rand -hex 32`. Keep `.env` out of Git.
+   Set a different `COMMUNITY_API_KEY` to enable the community contribution API.
 3. Run `npm start`. The server applies its idempotent schema migrations at startup.
 4. Run `npm test` to check the endpoint and retry behavior.
 
@@ -32,6 +33,58 @@ result in `ADMIN_PASSWORD_HASH`. Generate `ADMIN_SESSION_SECRET` with
 `openssl rand -hex 32`. Set `ADMIN_USERNAME` to your chosen username. Keep
 all three values in server environment variables, not Git. Run the dashboard
 over HTTPS when hosted.
+
+The signed-in dashboard also has `/admin/community` for accumulated, participant
+reviewed Scam and Safe messages. It shows accepted and independently verified
+counts, progress toward 100 verified messages per category, a label comparison,
+daily totals, exclusions, and a filterable list. The list and CSV export omit
+SMS text and participant IDs. Text appears only on a single-message detail page
+behind a collapsed disclosure. Researchers can mark a message Verified with an
+independent Scam/Safe label or Excluded; every decision is retained in review
+history. App predictions and participant reviewed labels are never counted as
+verified ground truth.
+
+## Community contribution API
+
+The Android community feature uses a **separate** key and endpoints from reports:
+
+- `GET /api/community/contributions/progress?participantId=<uuid>` with
+  `X-API-Key: <COMMUNITY_API_KEY>` returns
+  `{"scamAccepted":0,"safeAccepted":0}`.
+- `POST /api/community/contributions` with the same key accepts a reviewed batch:
+
+```json
+{
+  "batchId": "a7cb870f-a8db-4d89-817b-4bde88596e6a",
+  "participantId": "aa5ebc25-5b30-4d4b-9746-5c2f64a77d18",
+  "submittedAt": 1792790000000,
+  "items": [{
+    "clientId": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "text": "Participant reviewed and edited SMS text",
+    "predictedCategory": "SCAM",
+    "reviewedCategory": "SAFE",
+    "reviewedAt": 1792790000000
+  }]
+}
+```
+
+The response has `acceptedClientIds`, `rejectedClientIds`, and `progress`.
+Decisions are committed before HTTP 200. Repeating a client ID returns its
+original decision and never increments counts. The same batch ID may be retried
+with only unresolved items; a batch ID cannot move to another participant.
+The server accepts at most 20 participant reviewed Scam and 20 Safe messages
+per participant, and deduplicates normalized message text across participants.
+Sensitive text and messages over quota are rejected and listed in
+`rejectedClientIds`; rejected raw text is not stored. The server checks for
+codes, personal numbers, email addresses, and unredacted links again after the
+participant's review. Scanning itself stays on the Android device and sends
+nothing to this API.
+
+This is a controlled research prototype. A shared key packaged in an APK can
+be extracted, and a client supplied participant UUID is not proof of identity.
+For public enrollment, add installation or participant authentication and
+explicit consent records, enforce a retention/deletion policy, and review the
+deduplication rules before collecting real messages. Do not log raw SMS bodies.
 
 Open `/admin/login` to sign in. `/admin` shows received totals, review counts,
 breakdowns by reason, final verdict, AI status, Gemma classification, matched
@@ -126,7 +179,7 @@ option is a Render web service plus a Neon PostgreSQL database:
 - Build command: `npm ci`
 - Start command: `npm start`
 - Environment variables: `DATABASE_URL` (use Neon's SSL connection string),
-  `REPORT_API_KEY` (the random key generated above), and `ADMIN_USERNAME`,
+  `REPORT_API_KEY`, a separate `COMMUNITY_API_KEY`, and `ADMIN_USERNAME`,
   `ADMIN_PASSWORD_HASH`, `ADMIN_SESSION_SECRET` to enable private review
 - Health-check path: `/ready`
 
