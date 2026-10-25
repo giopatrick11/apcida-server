@@ -46,7 +46,8 @@ before(async () => {
       async get() { return message; },
       async history() { return []; },
       async review(_id, value, reviewer) { reviewed = { ...value, reviewer }; return true; },
-      async exportRows() { return [message]; }
+      async exportRows() { return [message, { ...message,
+        message_text: 'Hello, "world"\nNext line' }]; }
     },
     limiter: (_req, _res, next) => next() }).listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
@@ -88,9 +89,12 @@ test('community API uses its own key and returns the Android contract', async ()
   assert.equal(submitted.participantId, participantId);
 });
 
-test('community analysis requires admin login and keeps text off list and CSV', async () => {
+test('community analysis requires admin login and includes message text in CSV', async () => {
   const anonymous = await fetch(`${base}/admin/community`, { redirect: 'manual' });
   assert.equal(anonymous.status, 303);
+  const anonymousCsv = await fetch(`${base}/admin/community/export.csv`,
+    { redirect: 'manual' });
+  assert.equal(anonymousCsv.status, 303);
   const cookie = await login();
   const overview = await (await fetch(`${base}/admin/community`,
     { headers: { Cookie: cookie } })).text();
@@ -98,8 +102,10 @@ test('community analysis requires admin login and keeps text off list and CSV', 
   assert.ok(!overview.includes('private SMS'));
   const csv = await (await fetch(`${base}/admin/community/export.csv`,
     { headers: { Cookie: cookie } })).text();
+  assert.ok(csv.includes('message_id,message_text,received_at'));
   assert.ok(csv.includes('participant_reviewed_category'));
-  assert.ok(!csv.includes('private SMS'));
+  assert.ok(csv.includes('"<script>private SMS</script>"'));
+  assert.ok(csv.includes('"Hello, ""world""\nNext line"'));
   assert.ok(!csv.includes(participantId));
   const detail = await (await fetch(`${base}/admin/community/messages/${messageId}`,
     { headers: { Cookie: cookie } })).text();

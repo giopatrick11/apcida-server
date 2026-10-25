@@ -79,7 +79,7 @@ export function createCommunityAdminRepository(pool) {
     },
 
     async exportRows() {
-      const result = await pool.query(`SELECT m.message_id, m.received_at,
+      const result = await pool.query(`SELECT m.message_id, m.message_text, m.received_at,
         m.predicted_category, m.reviewed_category, v.verification_status,
         v.verified_label FROM community_messages m ${latestReview}
         ORDER BY m.received_at, m.message_id`);

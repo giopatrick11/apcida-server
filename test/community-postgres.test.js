@@ -55,6 +55,9 @@ test('community submissions are idempotent and verification counts are independe
       assert.ok(listed.rows.every((entry) => !Object.hasOwn(entry, 'message_text')));
       const detail = await admin.get(saved.rows[0].message_id);
       assert.equal(detail.message_text, item.text);
+      const exported = await admin.exportRows();
+      assert.equal(exported.find((entry) => entry.message_id === saved.rows[0].message_id)
+        ?.message_text, item.text);
       assert.equal(await admin.review(saved.rows[0].message_id, { status: 'VERIFIED',
         label: 'SAFE', notes: 'Independent review' }, 'tester'), true);
       const reviewed = await admin.get(saved.rows[0].message_id);

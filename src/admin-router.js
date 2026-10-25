@@ -10,6 +10,11 @@ const STATUS = new Set(['IN_REVIEW', 'RESOLVED']);
 const LABEL = new Set(['SCAM', 'LEGITIMATE', 'UNCERTAIN']);
 const FINDING = new Set(['MISSED_SCAM', 'FALSE_ALERT', 'ANALYSIS_FAILURE', 'INCONCLUSIVE', 'OTHER']);
 
+function csvCell(value) {
+  const text = String(value ?? '');
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
 function parseFilters(input) {
   const query = {};
   for (const key of ['reason', 'verdict', 'ai', 'status']) {
@@ -98,13 +103,13 @@ export function createAdminRouter({ admin, repository, communityRepository = nul
     });
     router.get('/community/export.csv', async (_req, res) => {
       const rows = await communityRepository.exportRows();
-      const header = 'message_id,received_at,predicted_category,participant_reviewed_category,verification_status,verified_label';
-      const lines = rows.map((row) => [row.message_id,
+      const header = 'message_id,message_text,received_at,predicted_category,participant_reviewed_category,verification_status,verified_label';
+      const lines = rows.map((row) => [row.message_id, row.message_text,
         new Date(row.received_at).toISOString(), row.predicted_category,
         row.reviewed_category, row.verification_status || 'PENDING',
-        row.verified_label || ''].join(','));
+        row.verified_label || ''].map(csvCell).join(','));
       res.set({ 'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': 'attachment; filename="apcida-community-labels.csv"' });
+        'Content-Disposition': 'attachment; filename="apcida-community-messages.csv"' });
       res.send([header, ...lines].join('\r\n') + '\r\n');
     });
     router.get('/community/messages/:id', async (req, res) => {

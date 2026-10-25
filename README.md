@@ -37,9 +37,10 @@ over HTTPS when hosted.
 The signed-in dashboard also has `/admin/community` for accumulated, participant
 reviewed Scam and Safe messages. It shows accepted and independently verified
 counts, progress toward 100 verified messages per category, a label comparison,
-daily totals, exclusions, and a filterable list. The list and CSV export omit
-SMS text and participant IDs. Text appears only on a single-message detail page
-behind a collapsed disclosure. Researchers can mark a message Verified with an
+daily totals, exclusions, and a filterable list. The list omits SMS text, while
+the CSV export includes the shared message text and labels. Both omit participant
+IDs. Text also appears on a single-message detail page behind a collapsed
+disclosure. Researchers can mark a message Verified with an
 independent Scam/Safe label or Excluded; every decision is retained in review
 history. App predictions and participant reviewed labels are never counted as
 verified ground truth.
